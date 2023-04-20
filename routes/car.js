@@ -1,22 +1,28 @@
-const express = require('express');
-const router = express.Router();
+var express = require('express');
+const car_controlers=require('../controllers/car');
+var router = express.Router();
+var car_controller = require('../controllers/car');
+// redirect to login. 
+const secured = (req, res, next) => { 
+  if (req.user){ 
+    return next(); 
+  } 
+  req.session.returnTo = req.originalUrl; 
+  res.redirect("/login"); 
+} 
+router.get('/', secured, car_controller.car_view_all_Page);
+router.get('/detail',secured, car_controller.car_view_one_Page);
+router.get('/create',secured, car_controller.car_create_Page);
+router.get('/update',secured, car_controller.car_update_Page);
+router.get('/delete',secured, car_controller.car_delete_Page);
 
-const car = require('../models/car'); // Import the car model
-const car_controlers = require('../controllers/carController');
+/* GET update car page */ 
+//router.get('/update', secured, car_controller.car_update_Page); 
 
 /* GET home page. */
-//router.get('/', carController.handbags_view_all_Page);
+router.get('/', function(req, res, next) {
+  res.render('car', { title: 'Search Results car' });
+});
 
-/* GET detail handbags page */
-router.get('/detail', car_controlers.car_view_one_Page);
-
-/* GET create car page */
-router.get('/create', car_controlers.hats_create_Page);
-
-/* GET create update page */
-router.get('/update', car_controlers.hats_update_Page);
-
-/* GET delete car page */
-router.get('/delete', car_controlers.car_delete_Page);
 
 module.exports = router;

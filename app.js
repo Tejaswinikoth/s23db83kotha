@@ -1,26 +1,56 @@
-var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
+var mongoose = require('mongoose')
+var mongodb = require('mongodb')
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
-
+var passport = require('passport');
+var LocalStrategy = require('passport-local').Strategy;
+passport.use(new LocalStrategy(
+  function (username, password, done) {
+    Account.findOne({
+      username: username
+    }, function (err, user) {
+      if (err) {
+        return done(err);
+      }
+      if (!user) {
+        return done(null, false, {
+          message: 'Incorrect username.'
+        });
+      }
+      if (!user.validPassword(password)) {
+        return done(null, false, {
+          message: 'Incorrect password.'
+        });
+      }
+      return done(null, user);
+    });
+  }))
+var car = require("./models/car");
 require('dotenv').config();
-const connectionString = process.env.MONGO_CON;
-const mongoose = require('mongoose');
-
-mongoose.connect(connectionString, { useNewUrlParser: true, useUnifiedTopology: true });
+const connectionString =
+  process.env.MONGO_CON
+mongoose = require('mongoose');
+mongoose.connect(connectionString, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+});
+var db = mongoose.connection;
+//Bind connection to error event
+db.on('error', console.error.bind(console, 'MongoDB connectionerror:'));
+db.once("open", function () {
+  console.log("Connection to DB succeeded")
+});
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
-//var hatsRouter = require('./routes/hats');
-var boardRouter = require('./routes/board');
+var appRouter = require('./routes/car');
+var gridbuildRouter = require('./routes/gridbuild');
 var selectorRouter = require('./routes/selector');
+var resourceRouter = require('./routes/resource');
 
 var app = express();
-
-var resourceRouter = require('./routes/resource');
-var carsRouter = require('./routes/car');
-var carsDetailRouter = require('./routes/detail');
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -28,25 +58,82 @@ app.set('view engine', 'pug');
 
 app.use(logger('dev'));
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({
+  extended: false
+}));
 app.use(cookieParser());
+app.use(require('express-session')({
+  secret: 'keyboard cat',
+  resave: false,
+  saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 app.use(express.static(path.join(__dirname, 'public')));
-
-var car = require("./models/car"); // Capture the car model
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
-app.use('/hats', hatsRouter);
-app.use('/board', boardRouter);
+app.use('/car', appRouter);
+app.use('/gridbuild', gridbuildRouter);
 app.use('/selector', selectorRouter);
-
-app.use('/cars', carsRouter);
-
 app.use('/resource', resourceRouter);
+// passport config 
+// Use the existing connection 
+// The Account model  
+var Account = require('./models/account');
 
-app.use('/resource', carsDetailRouter);
+passport.use(new LocalStrategy(Account.authenticate()));
+passport.serializeUser(Account.serializeUser());
+passport.deserializeUser(Account.deserializeUser());
+
+// We can seed the collection if needed on server start
+async function recreateDB() {
+  // Delete everything
+  await car.deleteMany();
+  let instance1 = new
+  car({
+    Model: "Hyndai Sonata",
+    yearofmanufacturing: 2018,
+    color: "Red"
+  });
+  instance1.save().then(doc => {
+    console.log("first car details saved")
+  }).catch(err => {
+    console.error(err)
+  })
+  let instance2 = new
+  car({
+    Model: "crysler",
+    yearofmanufacturing: 2019,
+    color: "silver"
+  });
+  instance2.save().then(doc => {
+    console.log("second car details saved")
+  }).catch(err => {
+    console.error(err)
+  })
+  let instance3 = new
+  car({
+    Model: " Honda",
+    yearofmanufacturing: 2020,
+    color: " Blue"
+  });
+  instance3.save().then(doc => {
+    console.log("third car details saved")
+  }).catch(err => {
+    console.error(err)
+  })
+}
+let reseed = true;
+if (reseed) {
+  recreateDB();
+}
 
 // catch 404 and forward to error handler
+//app.use(function(req, res, next) {
+//  next(createError(404));
+//});
+const createError = require('http-errors');
 app.use(function (req, res, next) {
   next(createError(404));
 });
@@ -61,47 +148,4 @@ app.use(function (err, req, res, next) {
   res.status(err.status || 500);
   res.render('error');
 });
-
 module.exports = app;
-
-// Get the default connection
-var db = mongoose.connection;
-
-// Bind connection to error event
-db.on('error', console.error.bind(console, 'MongoDB connection error:'));
-
-// Once the connection is open, log a success message
-db.once("open", function () {
-  console.log("Connection to DB succeeded");
-});
-
-// We can seed the collection if needed on server start
-async function recreateDB() {
-  try {
-    // Delete everything
-    await car.deleteMany();
-    const carsList = [
-      {
-        hat_type: "Baseball Cap",
-        color: 'Red',
-        price: 12.99
-      },
-      {
-        hat_type: "Fedora",
-        color: 'Black',
-        price: 29.99
-      },
-      {
-        hat_type: "Beanie",
-        color: 'Blue',
-        price: 9.99
-      }
-    ];
-    await car.insertMany(carsList);
-    console.log("cars recreated successfully!");
-  } catch (error) {
-    console.error(error);
-  }
-}
-let reseed = true;
-if (reseed) { recreateDB(); }
